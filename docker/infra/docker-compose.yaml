@@ -1,0 +1,85 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: itinv_mysql
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: itinventory_equip
+      MYSQL_USER: itinv
+      MYSQL_PASSWORD: itinv123
+    volumes:
+      - ./init:/docker-entrypoint-initdb.d
+      - itinv_mysql_data:/var/lib/mysql
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+    networks:
+      - itinvnet
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+    container_name: itinv_elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    networks:
+      - itinvnet
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.15.0
+    container_name: itinv_kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - itinvnet
+    restart: unless-stopped
+
+  etl:
+    build: ./etl
+    container_name: itinv_etl
+    depends_on:
+      mysql:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_DB: itinventory_equip
+      MYSQL_USER: itinv
+      MYSQL_PASSWORD: itinv123
+      ELASTIC_HOST: http://elasticsearch:9200
+      ELASTIC_INDEX: itinventory-equipments
+    networks:
+      - itinvnet
+    restart: "no"
+
+networks:
+  itinvnet:
+    name: itinvnet
+    driver: bridge
+
+volumes:
+  itinv_mysql_data:
