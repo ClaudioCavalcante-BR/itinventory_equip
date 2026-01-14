@@ -1,13 +1,18 @@
 services:
+  # ----------------------------
+  # API (Spring Boot)
+  # ----------------------------
   - type: web
     name: itinventory-api
     runtime: docker
     plan: free
     autoDeploy: true
+
     envVars:
       - key: SPRING_PROFILES_ACTIVE
         value: docker
 
+      # MySQL (Private Service)
       - key: SPRING_DATASOURCE_URL
         value: jdbc:mysql://itinventory-mysql:3306/itinventory_equip?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
       - key: SPRING_DATASOURCE_USERNAME
@@ -15,6 +20,7 @@ services:
       - key: SPRING_DATASOURCE_PASSWORD
         value: itinv123
 
+      # Elasticsearch (Private Service)
       - key: SEARCH_ES_ENABLED
         value: "true"
       - key: SEARCH_ES_HOST
@@ -24,14 +30,20 @@ services:
       - key: SEARCH_ES_INDEX
         value: itinventory-equipments
 
+  # ----------------------------
+  # MySQL (Private Service)
+  # Build custom image to run init scripts from docker/infra/init
+  # Requires: docker/infra/mysql/Dockerfile
+  # ----------------------------
   - type: pserv
     name: itinventory-mysql
-    env: docker
     runtime: docker
     plan: starter
     autoDeploy: true
+
     rootDir: docker/infra
     dockerfilePath: mysql/Dockerfile
+
     envVars:
       - key: MYSQL_ROOT_PASSWORD
         value: root123
@@ -41,49 +53,71 @@ services:
         value: itinv
       - key: MYSQL_PASSWORD
         value: itinv123
+
     disk:
       name: mysql-data
       mountPath: /var/lib/mysql
       sizeGB: 10
 
+  # ----------------------------
+  # Elasticsearch (Private Service)
+  # Uses startCommand to set -E params (avoids env var keys with dots)
+  # ----------------------------
   - type: pserv
     name: itinventory-es
     runtime: image
     plan: starter
     autoDeploy: true
+
     image:
       url: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+
+    startCommand: >
+      /usr/local/bin/docker-entrypoint.sh
+      -Ediscovery.type=single-node
+      -Expack.security.enabled=false
+
     envVars:
-      - key: discovery.type
-        value: single-node
-      - key: xpack.security.enabled
-        value: "false"
+      # Ajuste conforme a RAM do plano:
+      # - 1GB: "-Xms512m -Xmx512m"
+      # - 2GB: "-Xms1g -Xmx1g"
       - key: ES_JAVA_OPTS
-        value: -Xms512m -Xmx512m
+        value: "-Xms512m -Xmx512m"
+
     disk:
       name: es-data
       mountPath: /usr/share/elasticsearch/data
       sizeGB: 10
 
+  # ----------------------------
+  # Kibana (Web)
+  # ----------------------------
   - type: web
     name: itinventory-kibana
     runtime: image
     plan: free
     autoDeploy: true
+
     image:
       url: docker.elastic.co/kibana/kibana:8.15.0
+
     envVars:
       - key: ELASTICSEARCH_HOSTS
         value: http://itinventory-es:9200
 
+  # ----------------------------
+  # ETL (Cron Job) - indexes MySQL data into Elasticsearch
+  # ----------------------------
   - type: cron
     name: itinventory-etl
     runtime: docker
     plan: starter
     autoDeploy: true
     schedule: "0 3 * * *"
+
     rootDir: docker/infra/etl
     dockerfilePath: Dockerfile
+
     envVars:
       - key: MYSQL_HOST
         value: itinventory-mysql
@@ -93,6 +127,7 @@ services:
         value: itinv
       - key: MYSQL_PASSWORD
         value: itinv123
+
       - key: ELASTIC_HOST
         value: http://itinventory-es:9200
       - key: ELASTIC_INDEX

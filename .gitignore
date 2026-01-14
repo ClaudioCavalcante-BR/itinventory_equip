@@ -34,6 +34,8 @@ build/
 
 # Python venv (local)
 docker/infra/etl/.venv/
+docker/infra/etl/__pycache__/
+docker/infra/etl/*.pyc
 
 # Dump local
 itinventory_local_dump.sql
