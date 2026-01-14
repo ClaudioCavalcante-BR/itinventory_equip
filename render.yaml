@@ -1,0 +1,98 @@
+services:
+  - type: web
+    name: itinventory-api
+    runtime: docker
+    plan: free
+    autoDeploy: true
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: docker
+
+      - key: SPRING_DATASOURCE_URL
+        value: jdbc:mysql://itinventory-mysql:3306/itinventory_equip?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      - key: SPRING_DATASOURCE_USERNAME
+        value: itinv
+      - key: SPRING_DATASOURCE_PASSWORD
+        value: itinv123
+
+      - key: SEARCH_ES_ENABLED
+        value: "true"
+      - key: SEARCH_ES_HOST
+        value: itinventory-es
+      - key: SEARCH_ES_PORT
+        value: "9200"
+      - key: SEARCH_ES_INDEX
+        value: itinventory-equipments
+
+  - type: pserv
+    name: itinventory-mysql
+    runtime: docker
+    plan: starter
+    autoDeploy: true
+    rootDir: docker/infra/mysql
+    dockerfilePath: Dockerfile
+    envVars:
+      - key: MYSQL_ROOT_PASSWORD
+        value: root123
+      - key: MYSQL_DATABASE
+        value: itinventory_equip
+      - key: MYSQL_USER
+        value: itinv
+      - key: MYSQL_PASSWORD
+        value: itinv123
+    disk:
+      name: mysql-data
+      mountPath: /var/lib/mysql
+      sizeGB: 10
+
+  - type: pserv
+    name: itinventory-es
+    runtime: image
+    plan: starter
+    autoDeploy: true
+    image:
+      url: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+    envVars:
+      - key: discovery.type
+        value: single-node
+      - key: xpack.security.enabled
+        value: "false"
+      - key: ES_JAVA_OPTS
+        value: -Xms512m -Xmx512m
+    disk:
+      name: es-data
+      mountPath: /usr/share/elasticsearch/data
+      sizeGB: 10
+
+  - type: web
+    name: itinventory-kibana
+    runtime: image
+    plan: free
+    autoDeploy: true
+    image:
+      url: docker.elastic.co/kibana/kibana:8.15.0
+    envVars:
+      - key: ELASTICSEARCH_HOSTS
+        value: http://itinventory-es:9200
+
+  - type: cron
+    name: itinventory-etl
+    runtime: docker
+    plan: starter
+    autoDeploy: true
+    schedule: "0 3 * * *"
+    rootDir: docker/infra/etl
+    dockerfilePath: Dockerfile
+    envVars:
+      - key: MYSQL_HOST
+        value: itinventory-mysql
+      - key: MYSQL_DB
+        value: itinventory_equip
+      - key: MYSQL_USER
+        value: itinv
+      - key: MYSQL_PASSWORD
+        value: itinv123
+      - key: ELASTIC_HOST
+        value: http://itinventory-es:9200
+      - key: ELASTIC_INDEX
+        value: itinventory-equipments
