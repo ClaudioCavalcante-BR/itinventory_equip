@@ -26,11 +26,12 @@ services:
 
   - type: pserv
     name: itinventory-mysql
+    env: docker
     runtime: docker
     plan: starter
     autoDeploy: true
-    rootDir: docker/infra/mysql
-    dockerfilePath: Dockerfile
+    rootDir: docker/infra
+    dockerfilePath: mysql/Dockerfile
     envVars:
       - key: MYSQL_ROOT_PASSWORD
         value: root123
