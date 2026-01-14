@@ -63,7 +63,7 @@ services:
   - type: pserv
     name: itinventory-es
     runtime: image
-    plan: starter
+    plan: standard
     autoDeploy: true
     image:
       url: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
@@ -73,7 +73,7 @@ services:
       -Expack.security.enabled=false
     envVars:
       - key: ES_JAVA_OPTS
-        value: "-Xms256m -Xmx256m"
+        value: "-Xms1g -Xmx1g"
     disk:
       name: es-data
       mountPath: /usr/share/elasticsearch/data
